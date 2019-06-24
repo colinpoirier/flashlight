@@ -2,16 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-enum SlideDirection {
-  leftToRight,
-  rightToLeft,
-  topToBottom,
-  bottomToTop,
-  none,
-}
 
 class HorizontalDragger extends StatefulWidget {
-  final StreamController<DragUpdate> dragUpdateStream;
+  final StreamController<HorizontalDragUpdate> dragUpdateStream;
 
   HorizontalDragger({
     this.dragUpdateStream,
@@ -25,7 +18,6 @@ class _HorizontalDraggerState extends State<HorizontalDragger> {
   static const Full_Transition = 200.0;
 
   Offset dragStart;
-  SlideDirection slideDirection;
   double slidePercent = 0.0;
   double startPercent;
 
@@ -33,7 +25,6 @@ class _HorizontalDraggerState extends State<HorizontalDragger> {
     if (dragStart == null) {
       dragStart = details.globalPosition;
       startPercent = slidePercent;
-      //print('Heloo');
     }
   }
 
@@ -41,22 +32,12 @@ class _HorizontalDraggerState extends State<HorizontalDragger> {
     if (dragStart != null) {
       final newPosition = details.globalPosition;
       final dx = dragStart.dx - newPosition.dx;
-      if (dx > 0.0) {
-        slideDirection = SlideDirection.rightToLeft;
-      } else if (dx < 0.0) {
-        slideDirection = SlideDirection.leftToRight;
-      } else {
-        slideDirection = SlideDirection.none;
-      }
 
       slidePercent = (dx / Full_Transition).clamp(-1.0, 1.0);
 
       slidePercent = (startPercent + slidePercent).clamp(0.0, 0.6);
 
-      widget.dragUpdateStream.add(DragUpdate(slideDirection, slidePercent));
-
-      //print('Dragging $slideDirection at $slidePercent');
-
+      widget.dragUpdateStream.add(HorizontalDragUpdate(slidePercent));
     }
   }
 
@@ -89,15 +70,11 @@ class _VerticalDraggerState extends State<VerticalDragger> {
   static const Full_Transition = 45.0;
 
   Offset dragStart;
-  SlideDirection slideDirection;
   double slidePercent = 0.0;
-  //double startPercent;
 
   onDragStart(DragStartDetails details) {
     if (dragStart == null) {
       dragStart = details.globalPosition;
-      //startPercent = slidePercent;
-      //print('Heloo');
     }
   }
 
@@ -105,22 +82,11 @@ class _VerticalDraggerState extends State<VerticalDragger> {
     if (dragStart != null) {
       final newPosition = details.globalPosition;
       final dy = dragStart.dy - newPosition.dy;
-      if (dy > 0.0) {
-        slideDirection = SlideDirection.topToBottom;
-      } else if (dy < 0.0) {
-        slideDirection = SlideDirection.bottomToTop;
-      } else {
-        slideDirection = SlideDirection.none;
-      }
 
       slidePercent = (dy / Full_Transition).clamp(-1.0, 1.0);
 
-      //slidePercent = (startPercent + slidePercent).clamp(0.0, 1.0);
-
-      //print('Dragging $slideDirection at $slidePercent');
-
       widget.verticalDragUpdateStream
-          .add(VerticalDragUpdate(slideDirection, slidePercent));
+          .add(VerticalDragUpdate(slidePercent));
     }
   }
 
@@ -138,22 +104,18 @@ class _VerticalDraggerState extends State<VerticalDragger> {
   }
 }
 
-class DragUpdate {
-  final direction;
-  final slidePercent;
+class HorizontalDragUpdate {
+  final double slidePercent;
 
-  DragUpdate(
-    this.direction,
+  HorizontalDragUpdate(
     this.slidePercent,
   );
 }
 
 class VerticalDragUpdate {
-  final direction;
-  final slidePercent;
+  final double slidePercent;
 
   VerticalDragUpdate(
-    this.direction,
     this.slidePercent,
   );
 }

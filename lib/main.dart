@@ -2,17 +2,15 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
+
 import 'package:flashlight/flashlight.dart';
-
 import 'package:flare_flutter/flare_actor.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:image_picker/image_picker.dart';
-
 import 'package:path_provider/path_provider.dart';
 import 'package:zippo_app/draggers.dart';
+import 'package:zippo_app/helper_widgets.dart';
 
 void main() => runApp(MyApp());
 
@@ -22,22 +20,24 @@ class MyApp extends StatelessWidget {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
+    // SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+    //   statusBarBrightness: Brightness.dark,
+    // ));
+    const greyIconTheme = IconThemeData(color: Colors.grey);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Lighter Flashlight',
       theme: ThemeData(
-        primarySwatch: Colors.grey,
+        primarySwatch: greyIconTheme.color,
+        primaryIconTheme: greyIconTheme,
+        accentIconTheme: greyIconTheme,
       ),
-      home: MyHomePage(title: 'Lighter Flashlight'),
+      home: MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  final String title;
-
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -45,32 +45,29 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool _hasFlash = false;
   bool _isOn = false;
-  bool islit = false;
+  bool _islit = false;
   double _width = 0.0;
   double _height = 0.0;
-  double imWidth = 175;
-  double slidePercent = 0.0;
-  double verticalSlidePercent = 0.0;
-  double padLeft = 85;
-  double padTop = 100;
-  double padRight = 85;
-  int myNumWidth = 1;
-  int myNumHeight = 1;
+  double _imWidth = 175;
+  double _slidePercent = 0.0;
+  double _verticalSlidePercent = 0.0;
+  double _padLeft = 85;
+  double _padTop = 100;
+  double _padRight = 85;
+  int _myNumWidth = 1;
+  int _myNumHeight = 1;
 
-  StreamController<DragUpdate> dragUpdateStream;
-  StreamController<VerticalDragUpdate> verticalDragUpdateStream;
+  StreamController<HorizontalDragUpdate> _dragUpdateStream;
+  StreamController<VerticalDragUpdate> _verticalDragUpdateStream;
 
-  SlideDirection slideDirection = SlideDirection.none;
-
-  String path = '';
-  String contents = '';
-  String imageHistoryContents = '';
-  DateTime dateTime = DateTime.now();
+  String _path = '';
+  String _imageHistoryFileContents = '';
+  DateTime _dateTime = DateTime.now();
   File _image;
 
-  File initDisplay;
-  File imageHistoryFile;
-  List<String> imList = [];
+  File _initDisplay;
+  File _imageHistoryFile;
+  List<String> _imageList = [];
 
   @override
   initState() {
@@ -89,74 +86,73 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
-    dragUpdateStream.close();
-    verticalDragUpdateStream.close();
+    _dragUpdateStream.close();
+    _verticalDragUpdateStream.close();
     super.dispose();
   }
 
   void handleInitImageDisplay() async {
-    final Directory appDir = await getApplicationDocumentsDirectory();
-    path = appDir.path;
-    File tempDis = File('$path/im.txt').existsSync()
-        ? File('$path/im.txt')
-        : await File('$path/im.txt').create();
-    File tempHis = File('$path/imHis.txt').existsSync()
-        ? File('$path/imHis.txt')
-        : await File('$path/imHis.txt').create();
-    print('initDis = ${tempDis.readAsStringSync()}');
-    print('imageHis = ${tempHis.readAsStringSync()}');
+    final appDir = await getApplicationDocumentsDirectory();
+    _path = appDir.path;
+
+    final imagePath = '$_path/im.txt';
+    final readDisplayFile = File(imagePath).existsSync()
+        ? File(imagePath)
+        : await File(imagePath).create();
+
+    final historyPath = '$_path/imHis.txt';
+    final readImageHistoryFile = File(historyPath).existsSync()
+        ? File(historyPath)
+        : await File(historyPath).create();
+
+    print('initDis = ${readDisplayFile.readAsStringSync()}');
+    print('imageHis = ${readImageHistoryFile.readAsStringSync()}');
+
     setState(() {
-      initDisplay = tempDis;
-      imageHistoryFile = tempHis;
+      _initDisplay = readDisplayFile;
+      _imageHistoryFile = readImageHistoryFile;
     });
-    try {
-      contents = await initDisplay.readAsString();
-      if (contents != '0' && contents != '') {
-        File image = File('$path/$contents.jpg');
-        getImageSize(image);
-        setState(() {
-          _image = image;
-        });
-      }
-    } catch (e) {
-      print('from init $e');
+
+    final contents = await _initDisplay.readAsString();
+    if (contents != '0' && contents != '') {
+      final image = File('$_path/$contents.jpg');
+      await getImageSize(image);
+      setState(() {
+        _image = image;
+      });
     }
-    try {
-      imageHistoryContents = await imageHistoryFile.readAsString();
-      imList = imageHistoryContents.split(',');
-      imList.removeWhere((i) => i == '');
-      print(imList);
-    } catch (e) {
-      print('from his $e');
-    }
+
+    _imageHistoryFileContents = await _imageHistoryFile.readAsString();
+    _imageList = _imageHistoryFileContents.split(',');
+    _imageList.removeWhere((i) => i == '');
+    print(_imageList);
   }
 
-  void handleInitImageDisplayDispose({int val}) async {
+  Future handleInitImageDisplaySaveRemove({int val}) async {
     if (_image != null) {
       val == null
-          ? initDisplay.writeAsString('${dateTime.millisecondsSinceEpoch}')
-          : initDisplay.writeAsString('$val');
+          ? await _initDisplay
+              .writeAsString('${_dateTime.millisecondsSinceEpoch}')
+          : await _initDisplay.writeAsString('$val');
     } else {
-      //imageHistoryFile.delete();
-      initDisplay.writeAsString('0');
+      await _initDisplay.writeAsString('0');
     }
   }
 
   _MyHomePageState() {
-    dragUpdateStream = StreamController<DragUpdate>();
+    _dragUpdateStream = StreamController();
 
-    dragUpdateStream.stream.listen((DragUpdate event) {
-      slideDirection = event.direction;
-      slidePercent = event.slidePercent;
-      if (slidePercent < 0.3) {
-        _width = 200 * (slidePercent);
-        _height = 120 * (slidePercent);
-      } else if (islit) {
+    _dragUpdateStream.stream.listen((HorizontalDragUpdate event) {
+      _slidePercent = event.slidePercent;
+      if (_slidePercent < 0.3) {
+        _width = 200 * (_slidePercent);
+        _height = 120 * (_slidePercent);
+      } else if (_islit) {
         _width = 200;
         _height = 120;
       }
-      if (slidePercent < 0.2) {
-        islit = false;
+      if (_slidePercent < 0.2) {
+        _islit = false;
         _width = 0;
         _height = 0;
         if (_isOn && _hasFlash) {
@@ -164,19 +160,18 @@ class _MyHomePageState extends State<MyHomePage> {
           _isOn = false;
         }
       }
-      padLeft = ((1 - (slidePercent * 2)) * 85).clamp(0, 85).toDouble();
-      padRight = 85 + (300 * slidePercent).clamp(0, 150).toDouble();
-      padTop = 100 - (400 * slidePercent).clamp(0, 100).toDouble();
+      _padLeft = ((1 - (_slidePercent * 2)) * 85).clamp(0, 85).toDouble();
+      _padRight = 85 + (300 * _slidePercent).clamp(0, 150).toDouble();
+      _padTop = 100 - (400 * _slidePercent).clamp(0, 100).toDouble();
       setState(() {});
     });
 
-    verticalDragUpdateStream = StreamController<VerticalDragUpdate>();
+    _verticalDragUpdateStream = StreamController();
 
-    verticalDragUpdateStream.stream.listen((VerticalDragUpdate event) {
-      slideDirection = event.direction;
-      verticalSlidePercent = event.slidePercent;
-      if (verticalSlidePercent == -1 && slidePercent >= 0.3) {
-        islit = true;
+    _verticalDragUpdateStream.stream.listen((VerticalDragUpdate event) {
+      _verticalSlidePercent = event.slidePercent;
+      if (_verticalSlidePercent == -1 && _slidePercent >= 0.3) {
+        _islit = true;
         _width = 200;
         _height = 120;
         if (_hasFlash) {
@@ -188,16 +183,12 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  void isLitToggle() {
+  void _isLitToggle() {
     if (_hasFlash) {
       setState(() {
         _isOn = !_isOn;
       });
-      if (_isOn) {
-        Flashlight.flashOn;
-      } else {
-        Flashlight.flashOff;
-      }
+      _isOn ? Flashlight.flashOn : Flashlight.flashOff;
     }
   }
 
@@ -207,471 +198,404 @@ class _MyHomePageState extends State<MyHomePage> {
       _isOn = false;
     }
 
-    var image = await ImagePicker.pickImage(
+    final image = await ImagePicker.pickImage(
       source: ImageSource.camera,
     );
 
     if (image != null) {
-      await getImageSize(image);
-      handleImage(image);
-      handleInitImageDisplayDispose();
+      await getImageSize(image)
+          .then((_) => handleImage(image))
+          .then((_) => handleInitImageDisplaySaveRemove())
+          .catchError((_) => ooops());
     }
-    //if(_hasFlash){ Future.delayed(Duration(seconds: 2)).then((_){Flashlight.flashOn;});}
   }
 
   Future getImageGallery() async {
-    var image = await ImagePicker.pickImage(
+    final image = await ImagePicker.pickImage(
       source: ImageSource.gallery,
     );
 
     if (image != null) {
-      await getImageSize(image);
-      handleImage(image);
-      handleInitImageDisplayDispose();
+      await getImageSize(image)
+          .then((_) => handleImage(image))
+          .then((_) => handleInitImageDisplaySaveRemove())
+          .catchError((_) => ooops());
     }
   }
 
   Future getImageSize(File image) async {
-    Completer<ui.Image> completer = new Completer<ui.Image>();
+    final completer = Completer<ui.Image>();
     Image.file(
       image,
     ).image.resolve(ImageConfiguration()).addListener(
         (ImageInfo info, bool _) => completer.complete(info.image));
-    AsyncSnapshot<ui.Image> snapshot =
-        AsyncSnapshot<ui.Image>.withData(ConnectionState.none, null);
     if (completer.future != null) {
-      //print('pre-then');
       await completer.future.then((ui.Image data) {
-        snapshot = AsyncSnapshot.withData(ConnectionState.done, data);
-        setState(() {
-          myNumWidth = snapshot.data.width;
-          myNumHeight = snapshot.data.height;
-          //print('data set');
-          //print('expected AR ${snapshot.data.height/snapshot.data.width}');
-        });
-      });
-    }
-    snapshot = snapshot.inState(ConnectionState.waiting);
-  }
-
-  void handleImage(File image) {
-    dateTime = DateTime.now();
-    double _aspectRatio = myNumHeight / myNumWidth;
-    //print('AR used $_aspectRatio');
-    if (_aspectRatio >= 0.5 && _aspectRatio <= 2) {
-      try {
-        image.copy('$path/${dateTime.millisecondsSinceEpoch}.jpg');
-        imageHistoryContents += '${dateTime.millisecondsSinceEpoch},';
-        print(imageHistoryContents);
-        imageHistoryFile.writeAsString(imageHistoryContents);
-        imList.add('${dateTime.millisecondsSinceEpoch}');
-      } catch (e) {
-        print(e);
-      }
-      setState(() {
-        if (image != null) {
-          _image = image;
+        double aspectRatio = data.height / data.width;
+        if (aspectRatio >= 0.5 && aspectRatio <= 2) {
+          setState(() {
+            _myNumWidth = data.width;
+            _myNumHeight = data.height;
+          });
+        } else {
+          throw Exception();
         }
       });
-    } else {
-      ooops(context);
     }
   }
 
-  void imageNullerOnDoubleTap() {
+  Future handleImage(File image) async {
+    _dateTime = DateTime.now();
+    final dtMilli = _dateTime.millisecondsSinceEpoch;
+
+    image.copy('$_path/$dtMilli.jpg');
+
+    _imageHistoryFileContents += '$dtMilli,';
+    print(_imageHistoryFileContents);
+    await _imageHistoryFile.writeAsString(_imageHistoryFileContents);
+
+    _imageList.add('$dtMilli');
+
+    setState(() {
+      _image = image;
+    });
+  }
+
+  void imageNullerOnLongPress() async {
     setState(() {
       _image = null;
     });
-    handleInitImageDisplayDispose();
+    await handleInitImageDisplaySaveRemove();
   }
 
   void imageNullerOnTap() {
-    imageHistory(context);
+    imageHistory();
   }
 
-  Future<void> ooops(BuildContext context) async {
-    showDialog<void>(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Text('Oops'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'Please use another image with\na different aspect ratio.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-            actions: <Widget>[
-              FlatButton(
-                child: Text(
-                  'Go back',
-                  style: TextStyle(color: Colors.black),
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              )
-            ],
-          );
-        });
+  void ooops() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          title: const Text('Oops'),
+          content: const Text(
+            'Please use another image with\na different aspect ratio.',
+            textAlign: TextAlign.center,
+          ),
+          actions: <Widget>[
+            FlatButton(
+              child: const Text(
+                'Go back',
+                style: TextStyle(color: Colors.black),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+            )
+          ],
+        );
+      },
+    );
   }
 
   void update() {
     setState(() {});
   }
 
-  Future imageHistory(BuildContext context) async {
-    showDialog<void>(
-        context: context,
-        builder: (BuildContext context) {
-          return StatefulBuilder(
-            builder: (context, setState) {
-              String temp = initDisplay.readAsStringSync();
-              return SimpleDialog(
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 5, horizontal: 24),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                title: Text('Image History'),
-                children: <Widget>[
-                  Container(
-                    height: 150,
-                    width: 200,
-                    child: imList.isNotEmpty
-                      ? ListView(children: imList.map((f) => Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          children: [
-                            f == temp
-                              ? Icon(Icons.wallpaper,size: 25,)
-                              : SizedBox(width: 25,),
-                            Image.file(
-                              File('$path/$f.jpg'),
-                              height: 40,
-                              width: 40,
-                              fit: BoxFit.scaleDown,
-                            ),
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.end,
-                              children: [
-                                Container(
-                                  width: 60,
-                                  child: MaterialButton(
-                                    padding: EdgeInsets.all(0),
-                                    onPressed: () {
-                                      if (f == temp) {
-                                        print('here');
-                                        _image = null;
-                                        handleInitImageDisplayDispose();
-                                        update();
-                                      }
-                                      File('$path/$f.jpg').delete();
-                                      imList.remove(f);
-                                      imageHistoryContents = imList.join(',') +',';
-                                      print(imageHistoryContents);
-                                      imageHistoryFile.writeAsString(imageHistoryContents);
-                                      setState(() {});
-                                    },
-                                    child: Text('Delete'),
-                                  ),
-                                ),
-                                Container(
-                                  width: 60,
-                                  child: f == temp
-                                      ? MaterialButton(
-                                          padding: const EdgeInsets.all(0),
-                                          onPressed: () {
-                                            _image = null;
-                                            handleInitImageDisplayDispose();
-                                            update();
-                                            setState(() {});
-                                          },
-                                          child: Text('Unselect'),
-                                        )
-                                      : MaterialButton(
-                                          padding:const EdgeInsets.all(0),
-                                          onPressed: () {
-                                            File image = File('$path/$f.jpg');
-                                            getImageSize(image);
-                                            _image = image;
-                                            handleInitImageDisplayDispose(val:int.parse(f));
-                                            Navigator.of(context).pop();
-                                          },
-                                          child:
-                                            Text('Select'),
-                                        ),
-                                ),
-                              ])
-                          ]))
-                        .toList())
-                      : Text('No image history.'),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FlatButton(
-                      padding: EdgeInsets.all(0),
-                      child: Text(
-                        'Go back',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      onPressed: () {
+  void imageHistory() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            String savedInitImage = _initDisplay.readAsStringSync();
+            Widget imageHistoryList;
+            if (_imageList.isNotEmpty) {
+              imageHistoryList = ListView.builder(
+                itemCount: _imageList.length,
+                itemBuilder: (context, index) {
+                  final listImage = _imageList[index];
+                  Widget leading, trailingButton;
+                  if (listImage == savedInitImage) {
+                    leading = const Icon(
+                      Icons.wallpaper,
+                      size: 25,
+                    );
+                    trailingButton = ImageHistoryListButton(
+                      onPressed: () async {
+                        _image = null;
+                        await handleInitImageDisplaySaveRemove();
+                        update();
+                        setState(() {});
+                      },
+                      child: const Text('Unselect'),
+                    );
+                  } else {
+                    leading = const SizedBox(
+                      width: 25,
+                    );
+                    trailingButton = ImageHistoryListButton(
+                      onPressed: () async {
+                        File image = File('$_path/$listImage.jpg');
+                        await getImageSize(image);
+                        _image = image;
+                        await handleInitImageDisplaySaveRemove(
+                          val: int.parse(listImage),
+                        );
                         Navigator.of(context).pop();
                       },
+                      child: const Text('Select'),
+                    );
+                  }
+                  return ImageHistoryListItem(
+                    leading: leading,
+                    image: Image.file(
+                      File('$_path/$listImage.jpg'),
+                      height: 40,
+                      width: 40,
+                      fit: BoxFit.scaleDown,
                     ),
-                  ),
-                ],
+                    deleteButton: ImageHistoryListButton(
+                      child: const Text('Delete'),
+                      onPressed: () async {
+                        if (listImage == savedInitImage) {
+                          _image = null;
+                          await handleInitImageDisplaySaveRemove();
+                          update();
+                        }
+                        await File('$_path/$listImage.jpg').delete();
+                        _imageList.remove(listImage);
+                        _imageHistoryFileContents = _imageList.join(',') +
+                            (_imageList.isEmpty ? '' : ',');
+                        print(_imageHistoryFileContents);
+                        await _imageHistoryFile
+                            .writeAsString(_imageHistoryFileContents);
+                        setState(() {});
+                      },
+                    ),
+                    trailingButton: trailingButton,
+                  );
+                },
               );
-            },
-          );
-        });
+            } else {
+              imageHistoryList = const Center(
+                child: Text('No image history'),
+              );
+            }
+            return SimpleDialog(
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 5,
+                horizontal: 24,
+              ),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(20)),
+              ),
+              title: const Text('Image History'),
+              children: <Widget>[
+                Container(
+                  height: 150,
+                  width: 200,
+                  child: imageHistoryList,
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FlatButton(
+                    padding: const EdgeInsets.all(0),
+                    child: const Text(
+                      'Go back',
+                      style: TextStyle(
+                        color: Colors.black,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    Widget flame, topImage, bottomImage;
+    if (_islit) {
+      flame = FlareActor(
+        'assets/animations/flame.flr',
+        animation: 'flame',
+        fit: BoxFit.scaleDown,
+        shouldClip: false,
+        alignment: Alignment.bottomCenter,
+      );
+    }
+    if (_image != null) {
+      topImage = ClipRRect(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(8),
+        ),
+        child: Image.file(
+          _image,
+          alignment: Alignment.topCenter,
+          fit: BoxFit.fitWidth,
+          width: _imWidth,
+          height: 132 * _myNumHeight / (_myNumWidth * 2),
+        ),
+      );
+      bottomImage = ClipRRect(
+        borderRadius: const BorderRadius.vertical(
+          bottom: Radius.circular(8),
+        ),
+        child: Image.file(
+          _image,
+          fit: BoxFit.fitWidth,
+          width: _imWidth,
+          height: 218 * _myNumHeight / (_myNumWidth * 2),
+          alignment: Alignment.bottomCenter,
+        ),
+      );
+    }
     return Scaffold(
-      resizeToAvoidBottomPadding: false,
       backgroundColor: Colors.blueGrey,
       appBar: AppBar(
         actions: <Widget>[
-          ImageHistory(
-            onLongPress: imageNullerOnDoubleTap,
+          ImageHistoryFAB(
+            onLongPress: imageNullerOnLongPress,
             onTap: imageNullerOnTap,
           ),
         ],
-        title: Text(widget.title, style: TextStyle(color: Colors.black)),
+        title: const Text(
+          'Lighter Flashlight',
+          style: TextStyle(color: Colors.black),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0.0,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 85),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                height: 250.0,
-                //color: Colors.red.withOpacity(0.3),
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 90.0),
-                      child: GestureDetector(
-                        onTap: isLitToggle,
-                        child: AnimatedContainer(
-                          duration: Duration(milliseconds: 300),
-                          width: _width,
-                          height: _height,
-                          child: islit == true
-                              ? FlareActor(
-                                  'assets/animations/flame.flr',
-                                  animation: 'flame',
-                                  fit: BoxFit.scaleDown,
-                                  shouldClip: false,
-                                  alignment: Alignment.bottomCenter,
-                                )
-                              : Container(),
-                        ),
+      body: Padding(
+        padding: const EdgeInsets.only(bottom: 85),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Container(
+              height: 250.0,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 90.0),
+                    child: GestureDetector(
+                      onTap: _isLitToggle,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: _width,
+                        height: _height,
+                        child: flame,
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 55.0),
-                      child: Transform(
-                        transform:
-                            Matrix4.rotationZ(-pi * verticalSlidePercent),
-                        alignment: Alignment.center,
-                        child: Image.asset(
-                          'assets/wheel.png',
-                          width: 80.0,
-                          height: 80.0,
-                        ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 55.0),
+                    child: Transform(
+                      transform: Matrix4.rotationZ(-pi * _verticalSlidePercent),
+                      alignment: Alignment.center,
+                      child: Image.asset(
+                        'assets/wheel.png',
+                        width: 80.0,
+                        height: 80.0,
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 55.0),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 55.0),
+                    child: Container(
+                      width: 90,
+                      height: 100,
+                      child: VerticalDragger(
+                        verticalDragUpdateStream: _verticalDragUpdateStream,
+                      ),
+                    ),
+                  ),
+                  Image.asset(
+                    'assets/cage.png',
+                    width: 90.0,
+                    height: 90.0,
+                  ),
+                  Transform(
+                    transform: Matrix4.rotationZ(-pi * _slidePercent),
+                    alignment: Alignment.bottomLeft,
+                    child: Material(
+                      elevation: 12,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(8),
+                      ),
+                      color: const Color.fromRGBO(88, 88, 88, 1.0),
                       child: Container(
-                        //color: Colors.red.withOpacity(0.3),
-                        width: 90,
-                        height: 100,
-                        child: VerticalDragger(
-                          verticalDragUpdateStream:
-                              this.verticalDragUpdateStream,
+                        width: 198.0,
+                        height: 134.0,
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: topImage,
                         ),
                       ),
                     ),
-                    Image.asset(
-                      'assets/cage.png',
-                      width: 90.0,
-                      height: 90.0,
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      _padLeft,
+                      _padTop,
+                      _padRight,
+                      0,
                     ),
-                    Transform(
-                      transform: Matrix4.rotationZ(-pi * slidePercent),
-                      alignment: Alignment.bottomLeft,
-                      child: Material(
-                        type: MaterialType.canvas,
-                        elevation: 12,
-                        borderRadius:
-                            BorderRadius.vertical(top: Radius.circular(8)),
-                        color: Color.fromRGBO(88, 88, 88, 1.0),
-                        child: Container(
-                          //color: Colors.blue,
-                          width: 198.0,
-                          height: 134.0,
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: _image == null
-                                ? Container()
-                                : ClipRRect(
-                                    borderRadius: BorderRadius.vertical(
-                                        top: Radius.circular(8)),
-                                    child: Image.file(
-                                      _image,
-                                      alignment: Alignment.topCenter,
-                                      fit: BoxFit.fitWidth,
-                                      width: imWidth,
-                                      height: 132 *
-                                          (myNumHeight / (myNumWidth * 2)),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        // child: new Image.asset('assets/top.png',
-                        // width: 198.0,
-                        // height: 134.0,
-                        //   ),
-                      ),
+                    child: HorizontalDragger(
+                      dragUpdateStream: _dragUpdateStream,
                     ),
-                    Padding(
-                      padding:
-                          EdgeInsets.fromLTRB(padLeft, padTop, padRight, 0),
-                      child: HorizontalDragger(
-                        dragUpdateStream: this.dragUpdateStream,
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            Material(
+              elevation: 12,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(10),
+              ),
+              color: const Color.fromRGBO(88, 88, 88, 1.0),
+              child: Container(
+                width: 198.0,
+                height: 222.0,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: bottomImage,
                 ),
               ),
-              Container(
-                //color: Colors.blue,
-                height: 222,
-                child: Stack(
-                  //alignment: Alignment.center,
-                  children: <Widget>[
-                    Center(
-                      child: Material(
-                        elevation: 12,
-                        //margin: EdgeInsets.all(0),
-                        // shape: RoundedRectangleBorder(
-                        //   borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
-                        // ),
-                        //borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
-                        //borderRadius: BorderRadius.only(bottomLeft: Radius.circular(1),bottomRight: Radius.circular(1)),
-                        //color: Color.fromRGBO(88, 88, 88, 1.0),
-                        color: Colors.transparent,
-                        //child: Container(width: 200.0,height: 222.0,)
-                        child: Image.asset(
-                          'assets/bottom.png',
-                          width: 200.0,
-                          height: 222.0,
-                        ),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: _image == null
-                          ? Container()
-                          : ClipRRect(
-                              borderRadius: BorderRadius.vertical(
-                                  bottom: Radius.circular(8)),
-                              child: Image.file(
-                                _image,
-                                fit: BoxFit.fitWidth,
-                                width: imWidth,
-                                height: 218 * (myNumHeight / (myNumWidth * 2)),
-                                alignment: Alignment.bottomCenter,
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
-              )
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.only(left: 32.0),
-            child: FloatingActionButton(
-              onPressed: getImageGallery,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            FloatingActionButton(
+              onPressed: () async => await getImageGallery(),
               backgroundColor: Colors.black,
               tooltip: 'Take from gallery',
-              child: Icon(
+              child: const Icon(
                 Icons.add_photo_alternate,
-                color: Colors.grey,
               ),
             ),
-          ),
-          FloatingActionButton(
-            onPressed: getImageCamera,
-            backgroundColor: Colors.black,
-            tooltip: 'Take from camera',
-            child: Icon(
-              Icons.add_a_photo,
-              color: Colors.grey,
+            FloatingActionButton(
+              onPressed: () async => await getImageCamera(),
+              backgroundColor: Colors.black,
+              tooltip: 'Take from camera',
+              child: const Icon(
+                Icons.add_a_photo,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class ImageHistory extends StatelessWidget {
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-
-  const ImageHistory({
-    this.onTap,
-    this.onLongPress,
-    Key key,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: Material(
-        color: Colors.black,
-        elevation: 2,
-        shape: CircleBorder(),
-        child: Container(
-          height: 40,
-          width: 40,
-          child: Stack(
-            alignment: Alignment(-0.1, 0),
-            children: <Widget>[
-              //Butt,
-              Icon(Icons.history, color: Colors.grey),
-              InkWell(
-                customBorder: CircleBorder(),
-                onTap: this.onTap,
-                onLongPress: this.onLongPress,
-              )
-            ],
-          ),
+          ],
         ),
       ),
     );

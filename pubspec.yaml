@@ -45,12 +45,12 @@ flutter:
   #  - images/a_dot_burr.jpeg
   #  - images/a_dot_ham.jpeg
      - assets/cage.png
-     - assets/bottom.png
-     - assets/top.png
-     - assets/Zippo_Aperto.png
-     - assets/download.jpeg
+    #  - assets/bottom.png
+    #  - assets/top.png
+    #  - assets/Zippo_Aperto.png
+    #  - assets/download.jpeg
      - assets/wheel.png
-     - assets/images/firesheet.png
+    #  - assets/images/firesheet.png
      - assets/animations/flame.flr
      - assets/ic_launcher_2.png
   # An image asset can refer to one or more resolution-specific "variants", see
